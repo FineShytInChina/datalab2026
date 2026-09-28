@@ -19,7 +19,7 @@
  * Difficulty: 1
  */
 int bitAnd(int x, int y) {
-    return 2;
+    return ~(~x | ~y);
 }
 
 /*
@@ -30,7 +30,7 @@ int bitAnd(int x, int y) {
  *   Difficulty: 1
  */
 int bitXor(int x, int y) {
-    return 2;
+    return ~(x & y) & ~(~x & ~y);
 }
 
 /*
@@ -50,7 +50,7 @@ int bitXor(int x, int y) {
  *   1 if x and y have the same sign , 0 otherwise.
  */
 int samesign(int x, int y) {
-    return 2;
+    return !( !x ^ !y ) && !((x >> 31) ^ (y >> 31));
 }
 
 /*
@@ -63,7 +63,29 @@ int samesign(int x, int y) {
  *   Difficulty: 4
  */
 int logtwo(int v) {
-    return 2;
+    int res = 0;
+    int shift;
+
+    shift = (0xFFFF < v) << 4;
+    v = v >> shift;
+    res = res | shift;
+
+    shift = (0xFF < v) << 3;
+    v = v >> shift;
+    res = res | shift;
+
+    shift = (0xF < v) << 2;
+    v = v >> shift;
+    res = res | shift;
+
+    shift = (0x3 < v) << 1;
+    v = v >> shift;
+    res = res | shift;
+
+    shift = 0x1 < v;
+    res = res | shift;
+
+    return res;
 }
 
 /*
@@ -76,7 +98,12 @@ int logtwo(int v) {
  *    Difficulty: 2
  */
 int byteSwap(int x, int n, int m) {
-    return 2;
+    int n8 = n << 3;
+    int m8 = m << 3;
+    int n_byte = (x >> n8) & 0xFF;
+    int m_byte = (x >> m8) & 0xFF;
+    int mask = (0xFF << n8) | (0xFF << m8);
+    return (x & ~mask) | (n_byte << m8) | (m_byte << n8);
 }
 
 /*
@@ -88,7 +115,12 @@ int byteSwap(int x, int n, int m) {
  *   Difficulty: 3
  */
 unsigned reverse(unsigned v) {
-    return 2;
+    unsigned reversed = 0;
+    for (int i = 32; i; i--) {
+        reversed = (reversed << 1) | (v & 1);
+        v = v >> 1;
+    }
+    return reversed;
 }
 
 /*
@@ -99,9 +131,11 @@ unsigned reverse(unsigned v) {
  *   Max ops: 20
  *   Difficulty: 3
  */
-int logicalShift(int x, int n) {
-    return 2;
+ int logicalShift(int x, int n) {
+    int mask = ~(((1 << 31) >> n) << 1);
+    return (x >> n) & mask;
 }
+
 
 /*
  * leftBitCount - returns count of number of consective 1's in left-hand (most) end of word.
@@ -112,7 +146,33 @@ int logicalShift(int x, int n) {
  *   Difficulty: 4
  */
 int leftBitCount(int x) {
-    return 2;
+    int cnt = 0;
+    int t;
+
+    t = (!(~x >> 16)) << 4;
+    cnt = cnt + t;
+    x = x << t;
+
+    t = (!(~x >> 24)) << 3;
+    cnt = cnt + t;
+    x = x << t;
+
+    t = (!(~x >> 28)) << 2;
+    cnt = cnt + t;
+    x = x << t;
+
+    t = (!(~x >> 30)) << 1;
+    cnt = cnt + t;
+    x = x << t;
+
+    t = !(~x >> 31);
+    cnt = cnt + t;
+    x = x << t;
+
+    t = !(~x >> 31);
+    cnt = cnt + t;
+
+    return cnt;
 }
 
 /*
@@ -124,7 +184,36 @@ int leftBitCount(int x) {
  *   Difficulty: 4
  */
 unsigned float_i2f(int x) {
-    return 2;
+    unsigned sign, exp, frac;
+    unsigned absX;
+    unsigned hp = 1 << 31;
+    unsigned shiftLeft = 0;
+    unsigned round;
+    unsigned result;
+    if (0 == x) return 0;
+    absX = x;
+    sign = 0;
+    if (x < 0) {
+        absX = -x;
+        sign = hp;
+    }
+    while (0 == (hp & absX)) {
+        absX = absX << 1;
+        shiftLeft += 1;
+    }
+    exp = 127 + 31 - shiftLeft;
+    round = absX & 0xff;
+    frac = (~(hp >> 8)) & (absX >> 8);
+    result = sign | (exp << 23) | frac;
+
+    if (round > 0x80) {
+        result += 1;
+    } else if (0x80 == round) {
+        if (frac & 1) {
+            result += 1;
+        }
+    }
+    return result;
 }
 
 /*
@@ -139,7 +228,21 @@ unsigned float_i2f(int x) {
  *   Difficulty: 4
  */
 unsigned floatScale2(unsigned uf) {
-    return 2;
+    unsigned sign = uf >> 31;
+    unsigned exp = (uf >> 23) & 0xff;
+    unsigned frac = uf & 0x7fffff;
+    unsigned result;
+    
+    if (exp == 0xff) {
+        result = uf;
+    } else if (exp == 0x00) {
+        frac = frac << 1;
+        result = (sign << 31) | (exp << 23) | frac;
+    } else {
+        exp++;
+        result = (sign << 31) | (exp << 23) | frac;
+    }
+    return result;
 }
 
 /*
@@ -156,7 +259,23 @@ unsigned floatScale2(unsigned uf) {
  *   Difficulty: 3
  */
 int float64_f2i(unsigned uf1, unsigned uf2) {
-    return 2;
+    unsigned sign = uf2 >> 31;
+    unsigned exp = (uf2 >> 20) & 0x7FF;
+    unsigned val = 0x80000000 | ((uf2 & 0xFFFFF) << 11) | (uf1 >> 21);
+    if (exp < 1023)
+        return 0;
+    if (exp > 1054)
+        return 0x80000000;
+    val = val >> (1054 - exp);
+    if (sign) {
+        if (val > 0x80000000)
+            return 0x80000000;
+        return -val;
+    } else {
+        if (val > 0x7FFFFFFF)
+            return 0x80000000;
+        return val;
+    }
 }
 
 /*
@@ -173,5 +292,11 @@ int float64_f2i(unsigned uf1, unsigned uf2) {
  *   Difficulty: 4
  */
 unsigned floatPower2(int x) {
-    return 2;
+    if (x > 127)
+        return 0x7f800000;
+    if (x < -149)
+        return 0;
+    if (x < -126)
+        return 1 << (x + 149);
+    return (x + 127) << 23;
 }
